@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>PDF and Excel Checker</title>
+	<link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+	<style>
+		#loading {
+			display: none;
+			font-size: 20px;
+			color: blue;
+		}
+
+		.patient {
+			font-size: 18px;
+			margin-bottom: 10px;
+		}
+	</style>
+</head>
+
+<body class="bg-light">
+	<div class="container">
+		<h1 class="my-4 text-center">Check Patient Status</h1>
+		<div class="card p-4 mb-4">
+			<div class="form-group">
+				<label for="pdfUpload">Upload PDF</label>
+				<input type="file" class="form-control-file" id="pdfUpload" accept="application/pdf">
+			</div>
+			<div class="form-group">
+				<label for="excelUpload">Upload Excel</label>
+				<input type="file" class="form-control-file" id="excelUpload" accept=".xlsx">
+			</div>
+			<button id="checkStatusButton" class="btn btn-primary btn-block">Check Patient Status</button>
+			<button id="clearResultsButton" class="btn btn-secondary btn-block mt-2">Clear Results</button>
+			<div id="loading" class="text-center my-3">Loading...</div>
+		</div>
+		<div id="result" class="card p-4">
+			<!-- Os resultados aparecerão aqui -->
+		</div>
+	</div>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.16.9/xlsx.full.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.7.570/pdf.min.js"></script>
+	<script>
+		pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.7.570/pdf.worker.min.js';
+	</script>
+	<script src="script.js"></script>
+</body>
+
+</html>
