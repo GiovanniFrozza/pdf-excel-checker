@@ -16,11 +16,14 @@ async function checkPatientStatus() {
 	clearResult();
 
 	try {
-		const pdfText = await extractTextFromPDF(pdfFile);
-		const patients = await extractPatientsFromExcel(excelFile);
-		const patientNames = findPatientNames(pdfText);
+		const [pdfText, patients] = await Promise.all([
+			extractTextFromPDF(pdfFile),
+			extractPatientsFromExcel(excelFile)
+		]);
 
+		const patientNames = findPatientNames(pdfText);
 		const resultHtml = generateResultHtml(patientNames, patients);
+
 		setResultHtml(resultHtml);
 
 	} catch (error) {
@@ -29,24 +32,26 @@ async function checkPatientStatus() {
 	} finally {
 		showLoading(false);
 	}
-};
+}
 
 async function extractTextFromPDF(pdfFile) {
 	const pdfjsLib = window['pdfjs-dist/build/pdf'];
 	const arrayBuffer = await pdfFile.arrayBuffer();
 	const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
 	const pdf = await loadingTask.promise;
-	let text = "";
 
-	for (let i = 1; i <= pdf.numPages; i++) {
-		const page = await pdf.getPage(i);
-		const textContent = await page.getTextContent();
+	const pageTexts = await Promise.all(
+		Array.from({ length: pdf.numPages }, (_, i) => pdf.getPage(i + 1).then(page => page.getTextContent()))
+	);
+
+	const text = pageTexts.map(textContent => {
 		const strings = textContent.items.map(item => item.str);
-		text += strings.join(' ') + '\n';
-	}
+		return strings.join(' ');
+	}).join('\n');
 
+	console.log("Texto extraído do PDF:", text);
 	return text;
-};
+}
 
 async function extractPatientsFromExcel(excelFile) {
 	return new Promise((resolve, reject) => {
@@ -62,12 +67,10 @@ async function extractPatientsFromExcel(excelFile) {
 				reject(error);
 			}
 		};
-		reader.onerror = function (event) {
-			reject(event.target.error);
-		};
+		reader.onerror = reject;
 		reader.readAsArrayBuffer(excelFile);
 	});
-};
+}
 
 function findPatientNames(pdfText) {
 	const regex = /Paciente: [\d\s.]+- ([A-Za-z\s]+)/g;
@@ -75,46 +78,84 @@ function findPatientNames(pdfText) {
 	let match;
 
 	while ((match = regex.exec(pdfText)) !== null) {
-		matches.push(match[1].trim());
+		const patientName = normalizeString(match[1].trim());
+		matches.push(patientName);
 	}
 
 	return matches;
-};
+}
+
+function normalizeString(str) {
+	return str.normalize("NFD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.replace(/ç/g, "c")
+		.replace(/Ç/g, "C")
+		.toUpperCase();
+}
 
 function generateResultHtml(patientNames, patients) {
 	return patientNames.map(patientName => {
-		const patientStatus = checkPatientInList(patientName, patients);
-		const statusClass = patientStatus === "ATIVO" ? "text-success" :
-			patientStatus === "INATIVO" ? "text-danger" : "text-warning";
-		return `<div class="patient ${statusClass}">${patientName}`;
+		const normalizedPatientName = normalizeString(patientName);
+
+		const matchingPatients = patients.filter(p =>
+			normalizeString((p.nome || '').trim()).includes(normalizedPatientName)
+		);
+
+		if (matchingPatients.length > 0) {
+			const fullName = matchingPatients[0].nome.trim(); // Nome completo do paciente
+			const patientStatus = matchingPatients.some(p =>
+				normalizeString(p.situacao.trim()) === "ATIVO"
+			) ? "ATIVO" : matchingPatients[0].situacao;
+
+			const statusClass = patientStatus === "ATIVO" ? "text-success" :
+				patientStatus === "INATIVO" ? "text-danger" : "text-warning";
+
+			return `<div class="patient ${statusClass}">${fullName} </div>`;
+		} else {
+			return `<div class="patient text-warning">${patientName} </div>`;
+		}
 	}).join('<hr class="my-2">');
-};
+}
+
 
 function checkPatientInList(patientName, patients) {
-	const patient = patients.find(p => p.nome.trim().toUpperCase() === patientName.toUpperCase());
-	return patient ? patient.situacao : "not found";
-};
+	const normalizedPatientName = normalizeString(patientName);
+
+	const matchingPatients = patients.filter(p =>
+		normalizeString(p.nome.trim()).includes(normalizedPatientName)
+	);
+
+	const isAtivo = matchingPatients.some(p =>
+		normalizeString(p.situacao.trim()) === "ATIVO"
+	);
+
+	if (isAtivo) {
+		return "ATIVO";
+	} else {
+		return matchingPatients.length > 0 ? matchingPatients[0].situacao : "not found";
+	}
+}
 
 function setResultHtml(html) {
 	resultContainer.innerHTML = html;
-};
+}
 
 function setResultText(text) {
 	resultContainer.innerText = text;
-};
+}
 
 function clearResult() {
 	resultContainer.innerHTML = '';
-};
+}
 
 function showLoading(show) {
 	loadingIndicator.style.display = show ? 'block' : 'none';
-};
+}
 
 function clearUploads() {
 	pdfUpload.value = '';
 	excelUpload.value = '';
-};
+}
 
 document.getElementById('checkStatusButton').addEventListener('click', checkPatientStatus);
 document.getElementById('clearResultsButton').addEventListener('click', () => {
